@@ -1,0 +1,215 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats Row -->
+<div class="stats-grid">
+  <div class="stat-card accent">
+    <div class="stat-label">Total Approved</div>
+    <div class="stat-value">{{ current_user.company.base_currency }} {{ "%.0f"|format(analytics.total_approved) }}</div>
+    <div class="stat-sub">All time approved expenses</div>
+    <i class="fas fa-circle-check stat-icon"></i>
+  </div>
+  <div class="stat-card yellow">
+    <div class="stat-label">Pending Review</div>
+    <div class="stat-value">{{ analytics.count_pending }}</div>
+    <div class="stat-sub">Awaiting approval</div>
+    <i class="fas fa-clock stat-icon"></i>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-label">My Month Total</div>
+    <div class="stat-value">{{ current_user.company.base_currency }} {{ "%.0f"|format(my_month_total) }}</div>
+    <div class="stat-sub">{{ now.strftime('%B %Y') }}</div>
+    <i class="fas fa-calendar stat-icon"></i>
+  </div>
+  <div class="stat-card red">
+    <div class="stat-label">Pending Amount</div>
+    <div class="stat-value">{{ current_user.company.base_currency }} {{ "%.0f"|format(analytics.total_pending) }}</div>
+    <div class="stat-sub">In approval pipeline</div>
+    <i class="fas fa-hourglass stat-icon"></i>
+  </div>
+</div>
+
+<!-- Charts + Table Row -->
+<div class="grid-2" style="margin-bottom:24px">
+  <!-- Monthly Trend Chart -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-chart-line" style="color:var(--accent);margin-right:8px"></i>Monthly Trend</span>
+      <span style="font-size:11px;color:var(--text3)">Last 6 months</span>
+    </div>
+    <div class="card-body">
+      <canvas id="trendChart" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- Category Breakdown -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-chart-donut" style="color:var(--accent);margin-right:8px"></i>By Category</span>
+    </div>
+    <div class="card-body">
+      <canvas id="categoryChart" height="200"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Budget Overview + Recent Expenses -->
+<div class="grid-2">
+  <!-- Budget Overview -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-wallet" style="color:var(--accent);margin-right:8px"></i>Budget Overview</span>
+      {% if current_user.role == 'Admin' %}
+        <a href="{{ url_for('admin.budgets') }}" class="btn btn-secondary btn-xs">Manage</a>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      {% if budgets %}
+        {% for b in budgets %}
+          {% set pct_value = (b.spent / b.amount * 100) if b.amount else 0 %}
+          {% set pct = pct_value if pct_value < 100 else 100 %}
+          {% set pct_color = 'var(--red)' if pct >= 90 else ('var(--yellow)' if pct >= 70 else 'var(--accent)') %}
+          <div style="margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+              <span style="font-size:13px;font-weight:500">{{ b.category or b.department or 'General' }}</span>
+              <span style="font-size:12px;color:var(--text2)" class="mono">{{ b.currency }} {{ "%.0f"|format(b.spent) }} / {{ "%.0f"|format(b.amount) }}</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" data-pct="{{ pct }}" data-color="{{ pct_color }}"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">{{ "%.1f"|format(pct) }}% utilized</div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <i class="fas fa-wallet"></i>
+          <p>No budgets configured yet</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Recent Expenses -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-clock-rotate-left" style="color:var(--accent);margin-right:8px"></i>Recent Expenses</span>
+      <a href="{{ url_for('expenses.list_expenses') }}" class="btn btn-secondary btn-xs">View All</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for exp in recent_expenses %}
+          <tr onclick="window.location='/expenses/{{ exp.id }}'" style="cursor:pointer">
+            <td>
+              <div style="font-weight:500;color:var(--text);font-size:13px">{{ exp.title[:30] }}{% if exp.title|length > 30 %}…{% endif %}</div>
+              <div style="font-size:11px;color:var(--text3)">{{ exp.category }}</div>
+            </td>
+            <td class="mono" style="color:var(--text)">{{ exp.currency }} {{ "%.0f"|format(exp.amount) }}</td>
+            <td>
+              <span class="badge badge-{{ exp.status|lower|replace(' ', '') }}">
+                {{ exp.status }}
+              </span>
+            </td>
+            <td style="color:var(--text3);font-size:12px">{{ exp.date.strftime('%d %b') }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4">
+              <div class="empty-state" style="padding:30px">
+                <i class="fas fa-receipt"></i>
+                <p>No expenses yet</p>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Chart data as JSON to keep Jinja out of inline JS expressions -->
+<script type="application/json" id="trend-data">{{ analytics.monthly_trend | tojson }}</script>
+<script type="application/json" id="category-data">{{ analytics.category_breakdown | tojson }}</script>
+<script>
+const accentColor  = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+const textColor    = '#8b8fa8';
+const gridColor    = '#252830';
+
+// Monthly Trend
+const _trendRaw = JSON.parse(document.getElementById('trend-data').textContent || '[]');
+const trendLabels = _trendRaw.map(d => d.month);
+const trendValues = _trendRaw.map(d => d.total);
+new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels: trendLabels,
+    datasets: [{
+      label: 'Total Expenses',
+      data: trendValues,
+      borderColor: '#6c63ff',
+      backgroundColor: 'rgba(108,99,255,0.08)',
+      fill: true,
+      tension: 0.4,
+      pointBackgroundColor: '#6c63ff',
+      pointRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: textColor, font:{size:11} }, grid: { color: gridColor } },
+      y: { ticks: { color: textColor, font:{size:11} }, grid: { color: gridColor } }
+    }
+  }
+});
+
+// Category Donut
+const catData = JSON.parse(document.getElementById('category-data').textContent || '{}');
+const catLabels = Object.keys(catData);
+const catValues = Object.values(catData);
+const palette = ['#6c63ff','#3b82f6','#22c55e','#f59e0b','#ef4444','#ec4899','#06b6d4','#84cc16','#f97316','#a855f7','#14b8a6','#fb923c'];
+new Chart(document.getElementById('categoryChart'), {
+  type: 'doughnut',
+  data: {
+    labels: catLabels,
+    datasets: [{
+      data: catValues,
+      backgroundColor: palette.slice(0, catLabels.length),
+      borderWidth: 2,
+      borderColor: '#111318'
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '65%',
+    plugins: {
+      legend: { position: 'bottom', labels: { color: textColor, font:{size:11}, boxWidth:12, padding:12 } }
+    }
+  }
+});
+// Apply progress-fill widths and colors set by server via data attributes
+document.addEventListener('DOMContentLoaded', function(){
+  document.querySelectorAll('.progress-fill[data-pct]').forEach(function(el){
+    var pct = el.getAttribute('data-pct') || '0';
+    var color = el.getAttribute('data-color') || 'var(--accent)';
+    el.style.width = pct + '%';
+    el.style.background = color;
+  });
+});
+</script>
+{% endblock %}

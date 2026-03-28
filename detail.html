@@ -1,0 +1,227 @@
+{% extends 'base.html' %}
+{% block title %}Expense #{{ expense.id }}{% endblock %}
+{% block page_title %}Expense #{{ expense.id }}{% endblock %}
+
+{% block content %}
+<div style="max-width:860px;margin:0 auto">
+  <!-- Header -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+    <div>
+      <h2 style="font-size:20px;font-weight:700">{{ expense.title }}</h2>
+      <div style="color:var(--text2);font-size:13px;margin-top:4px">
+        Submitted by <strong>{{ expense.submitter.name }}</strong> on {{ expense.created_at.strftime('%d %b %Y, %H:%M') }}
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span class="badge badge-{{ expense.status.lower().replace(' ','') }}" style="font-size:13px;padding:6px 14px">
+        {{ expense.status }}
+      </span>
+      {% if expense.status == 'Rejected' and expense.user_id == current_user.id %}
+        <form method="POST" action="{{ url_for('expenses.resubmit_expense', expense_id=expense.id) }}">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="fas fa-rotate-right"></i> Resubmit
+          </button>
+        </form>
+      {% endif %}
+      <a href="{{ url_for('expenses.list_expenses') }}" class="btn btn-secondary btn-sm">← Back</a>
+    </div>
+  </div>
+
+  <div class="grid-2" style="gap:20px">
+    <!-- Left Column -->
+    <div>
+      <!-- Amount Card -->
+      <div class="card mb-3">
+        <div class="card-body">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Amount</div>
+          <div style="font-size:32px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--text)">
+            {{ expense.currency }} {{ "%.2f"|format(expense.amount) }}
+          </div>
+          {% if expense.converted_amount and expense.currency != expense.company.base_currency %}
+            <div style="color:var(--text2);font-size:14px;margin-top:6px">
+              ≈ {{ expense.company.base_currency }} {{ "%.2f"|format(expense.converted_amount) }}
+              <span style="font-size:11px;color:var(--text3);margin-left:4px">(rate: {{ "%.4f"|format(expense.exchange_rate) }})</span>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Details -->
+      <div class="card mb-3">
+        <div class="card-header"><span class="card-title">Details</span></div>
+        <div class="card-body">
+          {% set details = [
+            ('Category', expense.category),
+            ('Subcategory', expense.subcategory),
+            ('Date', expense.date.strftime('%d %B %Y')),
+            ('Project Code', expense.project_code),
+            ('Cost Center', expense.cost_center),
+            ('Tags', expense.tags),
+            ('Reimbursable', 'Yes' if expense.reimbursable else 'No'),
+          ] %}
+          {% for label, value in details %}
+            {% if value %}
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+                <span style="color:var(--text2)">{{ label }}</span>
+                <span style="color:var(--text);font-weight:500">{{ value }}</span>
+              </div>
+            {% endif %}
+          {% endfor %}
+          {% if expense.description %}
+            <div style="margin-top:12px">
+              <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Description</div>
+              <div style="font-size:13px;color:var(--text2);line-height:1.6">{{ expense.description }}</div>
+            </div>
+          {% endif %}
+          {% if not expense.policy_compliant %}
+            <div class="alert alert-warning mt-2">
+              <i class="fas fa-triangle-exclamation"></i>
+              <strong>Policy Issue:</strong> {{ expense.policy_notes }}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Receipt -->
+      {% if expense.receipt_url %}
+        <div class="card mb-3">
+          <div class="card-header"><span class="card-title"><i class="fas fa-paperclip" style="margin-right:6px"></i>Receipt</span></div>
+          <div class="card-body">
+            {% if expense.receipt_url.endswith('.pdf') %}
+              <a href="{{ expense.receipt_url }}" target="_blank" class="btn btn-secondary btn-sm">
+                <i class="fas fa-file-pdf"></i> View PDF Receipt
+              </a>
+            {% else %}
+              <img src="{{ expense.receipt_url }}" style="max-width:100%;border-radius:8px;border:1px solid var(--border)" alt="Receipt"/>
+            {% endif %}
+            {% if expense.receipt_ocr_data %}
+              {% set ocr = expense.receipt_ocr_data | from_json %}
+              {% if ocr.merchant or ocr.amount %}
+                <div style="margin-top:12px;background:var(--surface2);border-radius:8px;padding:12px">
+                  <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">OCR Extracted Data</div>
+                  {% if ocr.merchant %}<div style="font-size:13px"><span style="color:var(--text2)">Merchant:</span> {{ ocr.merchant }}</div>{% endif %}
+                  {% if ocr.amount %}<div style="font-size:13px"><span style="color:var(--text2)">Amount:</span> {{ ocr.amount }}</div>{% endif %}
+                  {% if ocr.date %}<div style="font-size:13px"><span style="color:var(--text2)">Date:</span> {{ ocr.date }}</div>{% endif %}
+                </div>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Right Column -->
+    <div>
+      <!-- Approval Timeline -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <span class="card-title"><i class="fas fa-timeline" style="color:var(--accent);margin-right:8px"></i>Approval Workflow</span>
+          <span style="font-size:11px;color:var(--text3)">Step {{ expense.current_step }}{% if expense.flow %} of {{ expense.flow.steps|length }}{% endif %}</span>
+        </div>
+        <div class="card-body">
+          {% if approvals %}
+            <!-- Group by step -->
+            {% set steps = {} %}
+            {% for a in approvals %}
+              {% if a.step_number not in steps %}{% set _ = steps.update({a.step_number: []}) %}{% endif %}
+              {% set _ = steps[a.step_number].append(a) %}
+            {% endfor %}
+
+            <div class="timeline">
+              {% for step_num in steps.keys()|sort %}
+                {% set step_approvals = steps[step_num] %}
+                <div class="timeline-item">
+                  {% set any_approved = step_approvals | selectattr('status','equalto','Approved') | list %}
+                  {% set any_rejected = step_approvals | selectattr('status','equalto','Rejected') | list %}
+                  {% set all_pending  = step_approvals | selectattr('status','equalto','Pending')  | list %}
+                  <div class="timeline-dot {% if any_rejected %}rejected{% elif any_approved and not all_pending %}approved{% elif all_pending %}pending{% endif %}"></div>
+                  <div class="timeline-content">
+                    <div class="timeline-title">Step {{ step_num }}
+                      {% if expense.flow %}
+                        {% for s in expense.flow.steps %}
+                          {% if s.step_number == step_num %} — {{ s.name or s.role }}{% endif %}
+                        {% endfor %}
+                      {% endif %}
+                    </div>
+                    {% for a in step_approvals %}
+                      <div style="margin-top:8px;background:var(--surface2);border-radius:8px;padding:10px">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                          <div style="font-size:13px;font-weight:500">{{ a.approver.name }}</div>
+                          <span class="badge badge-{{ a.status.lower() }}" style="font-size:10px">{{ a.status }}</span>
+                        </div>
+                        {% if a.comment %}
+                          <div style="font-size:12px;color:var(--text2);margin-top:6px;font-style:italic">"{{ a.comment }}"</div>
+                        {% endif %}
+                        {% if a.responded_at %}
+                          <div style="font-size:11px;color:var(--text3);margin-top:4px">{{ a.responded_at.strftime('%d %b %Y, %H:%M') }}</div>
+                        {% endif %}
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="empty-state" style="padding:30px">
+              <i class="fas fa-route"></i>
+              <p>No approval steps yet</p>
+            </div>
+          {% endif %}
+
+          <!-- Quick approve button for approvers -->
+          {% set my_pending = approvals | selectattr('approver_id', 'equalto', current_user.id) | selectattr('status','equalto','Pending') | list %}
+          {% if my_pending %}
+            <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--yellow)">
+                <i class="fas fa-clock"></i> Your approval required
+              </div>
+              <a href="{{ url_for('approvals.review_expense', expense_id=expense.id) }}" class="btn btn-primary" style="width:100%;justify-content:center">
+                <i class="fas fa-gavel"></i> Review & Decide
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Comments -->
+      <div class="card">
+        <div class="card-header"><span class="card-title"><i class="fas fa-comments" style="margin-right:8px"></i>Comments</span></div>
+        <div class="card-body">
+          {% if expense.comments %}
+            {% for c in expense.comments %}
+              {% if not c.is_internal or current_user.role != 'Employee' %}
+                <div style="margin-bottom:12px">
+                  <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div style="font-size:13px;font-weight:600">{{ c.user.name }}
+                      {% if c.is_internal %}<span style="font-size:10px;color:var(--text3);font-weight:400">(internal)</span>{% endif %}
+                    </div>
+                    <span style="font-size:11px;color:var(--text3)">{{ c.created_at.strftime('%d %b, %H:%M') }}</span>
+                  </div>
+                  <div style="font-size:13px;color:var(--text2);margin-top:4px;line-height:1.5">{{ c.comment }}</div>
+                </div>
+                {% if not loop.last %}<div style="border-bottom:1px solid var(--border);margin-bottom:12px"></div>{% endif %}
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <div style="font-size:13px;color:var(--text3);text-align:center;padding:16px">No comments yet</div>
+          {% endif %}
+
+          <form method="POST" action="{{ url_for('approvals.add_comment', expense_id=expense.id) }}" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
+            <div class="form-group" style="margin-bottom:10px">
+              <textarea name="comment" placeholder="Add a comment..." style="min-height:60px" required></textarea>
+            </div>
+            {% if current_user.role in ('Manager','Finance','Director','CFO','Admin') %}
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12px;color:var(--text2);margin-bottom:10px">
+                <input type="checkbox" name="is_internal" style="width:13px;height:13px"/> Internal comment (not visible to submitter)
+              </label>
+            {% endif %}
+            <button type="submit" class="btn btn-secondary btn-sm" style="width:100%;justify-content:center">
+              <i class="fas fa-paper-plane"></i> Post Comment
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

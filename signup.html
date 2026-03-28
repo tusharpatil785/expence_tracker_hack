@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block title %}Create Account{% endblock %}
+
+{% block content %}
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:40px 20px">
+  <div style="position:fixed;top:-200px;right:-200px;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(108,99,255,0.08) 0%,transparent 70%);pointer-events:none"></div>
+
+  <div style="width:100%;max-width:560px">
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="width:52px;height:52px;background:var(--accent);border-radius:14px;display:inline-grid;place-items:center;font-size:24px;font-weight:800;color:#fff;box-shadow:0 0 40px rgba(108,99,255,0.3);margin-bottom:16px">X</div>
+      <h1 style="font-size:24px;font-weight:700;letter-spacing:-0.5px">Set up your company</h1>
+      <p style="color:var(--text2);margin-top:6px;font-size:14px">You'll be the admin. Invite your team later.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <form method="POST">
+          <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
+            <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-bottom:14px">Your Details</div>
+            <div class="form-row cols-2">
+              <div class="form-group" style="margin:0">
+                <label>Full Name</label>
+                <input type="text" name="name" placeholder="John Doe" required/>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Work Email</label>
+                <input type="email" name="email" placeholder="john@company.com" required/>
+              </div>
+            </div>
+            <div class="form-row cols-2 mt-2">
+              <div class="form-group" style="margin:0">
+                <label>Password</label>
+                <input type="password" name="password" placeholder="Min. 8 characters" required minlength="8"/>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Confirm Password</label>
+                <input type="password" name="confirm_password" placeholder="Repeat password" required/>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:20px">
+            <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-bottom:14px">Company Details</div>
+            <div class="form-group">
+              <label>Company Name</label>
+              <input type="text" name="company_name" placeholder="Acme Corporation" required/>
+            </div>
+            <div class="form-row cols-3">
+              <div class="form-group" style="margin:0">
+                <label>Country</label>
+                <select name="country" id="country-select" onchange="fetchCurrency(this.value)">
+                  <option value="US">🇺🇸 United States</option>
+                  <option value="IN" selected>🇮🇳 India</option>
+                  <option value="GB">🇬🇧 United Kingdom</option>
+                  <option value="DE">🇩🇪 Germany</option>
+                  <option value="JP">🇯🇵 Japan</option>
+                  <option value="SG">🇸🇬 Singapore</option>
+                  <option value="AU">🇦🇺 Australia</option>
+                  <option value="CA">🇨🇦 Canada</option>
+                  <option value="AE">🇦🇪 UAE</option>
+                  <option value="FR">🇫🇷 France</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Base Currency</label>
+                <select name="currency" id="currency-select">
+                  {% for code, name in currencies %}
+                    <option value="{{ code }}" {% if code == 'INR' %}selected{% endif %}>{{ code }} — {{ name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Industry</label>
+                <select name="industry">
+                  <option value="Technology">Technology</option>
+                  <option value="Finance">Finance</option>
+                  <option value="Healthcare">Healthcare</option>
+                  <option value="Manufacturing">Manufacturing</option>
+                  <option value="Retail">Retail</option>
+                  <option value="Consulting">Consulting</option>
+                  <option value="Education">Education</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px">
+            <i class="fas fa-rocket"></i> Create Company & Continue
+          </button>
+        </form>
+        <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--text2)">
+          Already have an account? <a href="{{ url_for('auth.login') }}" style="color:var(--accent2);font-weight:600;text-decoration:none">Sign in →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+async function fetchCurrency(countryCode) {
+  try {
+    const res = await fetch(`/api/country-currency/${countryCode}`);
+    const data = await res.json();
+    const sel = document.getElementById('currency-select');
+    for (let opt of sel.options) {
+      if (opt.value === data.code) { sel.value = data.code; break; }
+    }
+  } catch(e) {}
+}
+</script>
+{% endblock %}

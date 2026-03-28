@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% block title %}Review Expense #{{ expense.id }}{% endblock %}
+{% block page_title %}Review Expense{% endblock %}
+
+{% block content %}
+<div style="max-width:800px;margin:0 auto">
+  <!-- Header -->
+  <div class="card mb-3" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(108,99,255,0.05) 100%);border-color:var(--accent)">
+    <div class="card-body">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+        <div>
+          <h2 style="font-size:18px;font-weight:700">{{ expense.title }}</h2>
+          <div style="color:var(--text2);font-size:13px;margin-top:4px">
+            Submitted by <strong>{{ expense.submitter.name }}</strong>
+            {% if expense.submitter.department %} · {{ expense.submitter.department }}{% endif %}
+            <span style="color:var(--text3)"> · {{ expense.created_at.strftime('%d %b %Y, %H:%M') }}</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace;text-align:right">
+            {{ expense.currency }} {{ "%.2f"|format(expense.amount) }}
+          </div>
+          {% if expense.converted_amount %}
+            <div style="font-size:13px;color:var(--text2);text-align:right">≈ {{ expense.company.base_currency }} {{ "%.2f"|format(expense.converted_amount) }}</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Key info pills -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+        <span style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px">
+          <i class="fas fa-tag" style="color:var(--accent);margin-right:4px"></i>{{ expense.category }}
+        </span>
+        <span style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px">
+          <i class="fas fa-calendar" style="color:var(--accent);margin-right:4px"></i>{{ expense.date.strftime('%d %b %Y') }}
+        </span>
+        {% if expense.project_code %}
+          <span style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px">
+            <i class="fas fa-code-branch" style="color:var(--accent);margin-right:4px"></i>{{ expense.project_code }}
+          </span>
+        {% endif %}
+        <span class="badge badge-{{ expense.status.lower().replace(' ','') }}">{{ expense.status }}</span>
+        {% if not expense.policy_compliant %}
+          <span style="background:var(--yellow-soft);color:var(--yellow);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600">
+            <i class="fas fa-triangle-exclamation"></i> Policy Issue
+          </span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if expense.description %}
+    <div class="card mb-3">
+      <div class="card-header"><span class="card-title">Business Purpose</span></div>
+      <div class="card-body" style="font-size:14px;color:var(--text2);line-height:1.7">{{ expense.description }}</div>
+    </div>
+  {% endif %}
+
+  {% if expense.receipt_url %}
+    <div class="card mb-3">
+      <div class="card-header"><span class="card-title"><i class="fas fa-paperclip" style="margin-right:8px"></i>Receipt</span></div>
+      <div class="card-body">
+        {% if expense.receipt_url.endswith('.pdf') %}
+          <a href="{{ expense.receipt_url }}" target="_blank" class="btn btn-secondary btn-sm"><i class="fas fa-file-pdf"></i> View PDF</a>
+        {% else %}
+          <img src="{{ expense.receipt_url }}" style="max-width:100%;max-height:300px;object-fit:contain;border-radius:8px;border:1px solid var(--border)" alt="Receipt"/>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Decision Form -->
+  {% if my_approval %}
+    <div class="card mb-3" style="border-color:var(--accent)">
+      <div class="card-header" style="background:var(--accent-glow)">
+        <span class="card-title"><i class="fas fa-gavel" style="color:var(--accent);margin-right:8px"></i>Your Decision — Step {{ expense.current_step }}</span>
+      </div>
+      <div class="card-body">
+        <form method="POST">
+          <div class="form-group">
+            <label>Comments / Remarks</label>
+            <textarea name="comment" placeholder="Add your reasoning or feedback (optional)..."></textarea>
+          </div>
+          <div style="display:flex;gap:12px">
+            <button type="submit" name="decision" value="Approved" class="btn btn-success" style="flex:1;justify-content:center">
+              <i class="fas fa-circle-check"></i> Approve
+            </button>
+            <button type="submit" name="decision" value="Rejected"
+              class="btn btn-danger" style="flex:1;justify-content:center"
+              onclick="return confirm('Reject this expense? This will stop the approval workflow.')">
+              <i class="fas fa-circle-xmark"></i> Reject
+            </button>
+          </div>
+        </form>
+
+        <!-- Delegate -->
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;color:var(--text3);margin-bottom:8px">Or delegate this approval to someone else:</div>
+          <form method="POST" action="{{ url_for('approvals.delegate_approval', expense_id=expense.id) }}" style="display:flex;gap:8px">
+            <select name="delegate_to" style="flex:1">
+              <option value="">Select a person...</option>
+              {% from models.models import User %}
+            </select>
+            <button type="submit" class="btn btn-secondary btn-sm"><i class="fas fa-share"></i> Delegate</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  {% elif expense.status in ('Approved','Rejected') %}
+    <div class="alert alert-{{ 'success' if expense.status == 'Approved' else 'error' }}">
+      <i class="fas fa-circle-{{ 'check' if expense.status == 'Approved' else 'xmark' }}"></i>
+      This expense has been <strong>{{ expense.status }}</strong>.
+    </div>
+  {% else %}
+    <div class="alert alert-info">
+      <i class="fas fa-circle-info"></i>
+      This expense is currently in review. No action required from you at this step.
+    </div>
+  {% endif %}
+
+  <!-- Approval History -->
+  {% if all_approvals %}
+    <div class="card mb-3">
+      <div class="card-header"><span class="card-title">Approval Trail</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Step</th><th>Approver</th><th>Role</th><th>Decision</th><th>Comment</th><th>Date</th></tr>
+          </thead>
+          <tbody>
+            {% for a in all_approvals %}
+              <tr>
+                <td class="mono" style="color:var(--accent2)">{{ a.step_number }}</td>
+                <td style="font-weight:500;color:var(--text)">{{ a.approver.name }}</td>
+                <td><span class="badge badge-{{ a.approver.role.lower() }}">{{ a.approver.role }}</span></td>
+                <td><span class="badge badge-{{ a.status.lower() }}">{{ a.status }}</span></td>
+                <td style="color:var(--text2);font-size:12px">{{ a.comment or '—' }}</td>
+                <td style="color:var(--text3);font-size:12px">{{ a.responded_at.strftime('%d %b, %H:%M') if a.responded_at else 'Pending' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Comments -->
+  <div class="card">
+    <div class="card-header"><span class="card-title"><i class="fas fa-comments" style="margin-right:8px"></i>Comments</span></div>
+    <div class="card-body">
+      {% for c in comments %}
+        <div style="margin-bottom:12px;padding:12px;background:var(--surface2);border-radius:8px">
+          <div style="display:flex;justify-content:space-between">
+            <div style="font-size:13px;font-weight:600">{{ c.user.name }}
+              {% if c.is_internal %}<span style="font-size:10px;color:var(--text3);font-weight:400"> (internal)</span>{% endif %}
+            </div>
+            <span style="font-size:11px;color:var(--text3)">{{ c.created_at.strftime('%d %b, %H:%M') }}</span>
+          </div>
+          <div style="font-size:13px;color:var(--text2);margin-top:6px">{{ c.comment }}</div>
+        </div>
+      {% endfor %}
+      <form method="POST" action="{{ url_for('approvals.add_comment', expense_id=expense.id) }}" style="margin-top:12px">
+        <div class="form-group" style="margin-bottom:8px">
+          <textarea name="comment" placeholder="Add a comment..." style="min-height:60px" required></textarea>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:12px;color:var(--text2)">
+            <input type="checkbox" name="is_internal" style="width:13px;height:13px"/> Internal only
+          </label>
+          <button type="submit" class="btn btn-secondary btn-sm"><i class="fas fa-paper-plane"></i> Post</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div style="margin-top:16px">
+    <a href="{{ url_for('approvals.list_approvals') }}" class="btn btn-secondary btn-sm">← Back to Queue</a>
+    <a href="{{ url_for('expenses.view_expense', expense_id=expense.id) }}" class="btn btn-secondary btn-sm">Full Expense View</a>
+  </div>
+</div>
+{% endblock %}

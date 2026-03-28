@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% block title %}Expenses{% endblock %}
+{% block page_title %}Expenses{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="card mb-3">
+  <div class="card-body" style="padding:16px 22px">
+    <form method="GET" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:1;min-width:120px">
+        <label style="margin-bottom:4px">Status</label>
+        <select name="status" onchange="this.form.submit()">
+          <option value="">All Statuses</option>
+          {% for s in ['Pending','In Review','Approved','Rejected','Cancelled'] %}
+            <option {% if status_filter == s %}selected{% endif %} value="{{ s }}">{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="flex:1;min-width:160px">
+        <label style="margin-bottom:4px">Category</label>
+        <select name="category" onchange="this.form.submit()">
+          <option value="">All Categories</option>
+          {% for cat in categories %}
+            <option {% if category_filter == cat %}selected{% endif %} value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="flex:1;min-width:130px">
+        <label style="margin-bottom:4px">From Date</label>
+        <input type="date" name="date_from"/>
+      </div>
+      <div style="flex:1;min-width:130px">
+        <label style="margin-bottom:4px">To Date</label>
+        <input type="date" name="date_to"/>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-filter"></i> Filter</button>
+        <a href="{{ url_for('expenses.list_expenses') }}" class="btn btn-secondary btn-sm"><i class="fas fa-xmark"></i></a>
+        <a href="{{ url_for('expenses.export_expenses') }}" class="btn btn-secondary btn-sm"><i class="fas fa-download"></i> CSV</a>
+        <a href="{{ url_for('expenses.new_expense') }}" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> New</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="padding-left:22px">
+            <input type="checkbox" id="select-all" style="width:14px;height:14px" onchange="toggleAll(this)"/>
+          </th>
+          <th>Expense</th>
+          <th>Submitter</th>
+          <th>Amount</th>
+          <th>Converted</th>
+          <th>Category</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exp in expenses.items %}
+        <tr>
+          <td style="padding-left:22px">
+            <input type="checkbox" class="row-check" value="{{ exp.id }}" style="width:14px;height:14px"/>
+          </td>
+          <td>
+            <div style="font-weight:600;color:var(--text);font-size:13px">
+              {{ exp.title[:40] }}{% if exp.title|length > 40 %}…{% endif %}
+            </div>
+            {% if exp.project_code %}
+              <div style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace">{{ exp.project_code }}</div>
+            {% endif %}
+            {% if not exp.policy_compliant %}
+              <span style="font-size:10px;color:var(--yellow)"><i class="fas fa-triangle-exclamation"></i> Policy issue</span>
+            {% endif %}
+          </td>
+          <td style="font-size:13px">{{ exp.submitter.name }}</td>
+          <td class="mono" style="color:var(--text)">{{ exp.currency }} {{ "%.2f"|format(exp.amount) }}</td>
+          <td class="mono" style="color:var(--text2)">
+            {% if exp.converted_amount and exp.currency != current_user.company.base_currency %}
+              {{ current_user.company.base_currency }} {{ "%.2f"|format(exp.converted_amount) }}
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            <span style="font-size:12px;color:var(--text2)">{{ exp.category }}</span>
+          </td>
+          <td>
+            <span class="badge badge-{{ exp.status.lower().replace(' ','') }}">{{ exp.status }}</span>
+          </td>
+          <td style="color:var(--text3);font-size:12px">{{ exp.date.strftime('%d %b %Y') }}</td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <a href="{{ url_for('expenses.view_expense', expense_id=exp.id) }}" class="btn btn-secondary btn-xs">
+                <i class="fas fa-eye"></i>
+              </a>
+              {% if exp.status in ('Pending','In Review') and exp.user_id == current_user.id %}
+                <form method="POST" action="{{ url_for('expenses.cancel_expense', expense_id=exp.id) }}" style="display:inline">
+                  <button type="submit" class="btn btn-xs" style="background:var(--red-soft);color:var(--red);border:none"
+                    onclick="return confirm('Cancel this expense?')">
+                    <i class="fas fa-xmark"></i>
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9">
+          <div class="empty-state">
+            <i class="fas fa-receipt"></i>
+            <p>No expenses found</p>
+            <a href="{{ url_for('expenses.new_expense') }}" class="btn btn-primary btn-sm mt-2"><i class="fas fa-plus"></i> Submit First Expense</a>
+          </div>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if expenses.pages > 1 %}
+  <div style="border-top:1px solid var(--border);padding:16px 22px">
+    <div class="pagination">
+      {% if expenses.has_prev %}
+        <a href="?page={{ expenses.prev_num }}" class="page-btn"><i class="fas fa-chevron-left" style="font-size:11px"></i></a>
+      {% endif %}
+      {% for p in expenses.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
+        {% if p %}
+          <a href="?page={{ p }}" class="page-btn {% if p == expenses.page %}active{% endif %}">{{ p }}</a>
+        {% else %}
+          <span style="color:var(--text3);padding:0 4px">…</span>
+        {% endif %}
+      {% endfor %}
+      {% if expenses.has_next %}
+        <a href="?page={{ expenses.next_num }}" class="page-btn"><i class="fas fa-chevron-right" style="font-size:11px"></i></a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+<script>
+function toggleAll(cb) {
+  document.querySelectorAll('.row-check').forEach(c => c.checked = cb.checked);
+}
+</script>
+{% endblock %}

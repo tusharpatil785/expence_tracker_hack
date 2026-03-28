@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px">
+  <!-- Background decoration -->
+  <div style="position:fixed;top:-200px;right:-200px;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(108,99,255,0.08) 0%,transparent 70%);pointer-events:none"></div>
+  <div style="position:fixed;bottom:-200px;left:-200px;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(59,130,246,0.06) 0%,transparent 70%);pointer-events:none"></div>
+
+  <div style="width:100%;max-width:400px">
+    <!-- Logo -->
+    <div style="text-align:center;margin-bottom:40px">
+      <div style="width:52px;height:52px;background:var(--accent);border-radius:14px;display:inline-grid;place-items:center;font-size:24px;font-weight:800;color:#fff;box-shadow:0 0 40px rgba(108,99,255,0.3);margin-bottom:16px">X</div>
+      <h1 style="font-size:26px;font-weight:700;letter-spacing:-0.5px">Welcome back</h1>
+      <p style="color:var(--text2);margin-top:6px;font-size:14px">Sign in to your Xpense account</p>
+    </div>
+
+    <!-- Card -->
+    <div class="card">
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('auth.login') }}">
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" name="email" placeholder="you@company.com" required autocomplete="email"/>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <div style="position:relative">
+              <input type="password" name="password" id="pw-field" placeholder="••••••••" required autocomplete="current-password"/>
+              <button type="button" onclick="togglePw()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px">
+                <i class="fas fa-eye" id="pw-icon"></i>
+              </button>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+            <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;cursor:pointer;color:var(--text2)">
+              <input type="checkbox" name="remember" style="width:14px;height:14px"/> Remember me
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px">
+            <i class="fas fa-right-to-bracket"></i> Sign In
+          </button>
+        </form>
+        <div style="text-align:center;margin-top:20px;font-size:13px;color:var(--text2)">
+          Don't have an account?
+          <a href="{{ url_for('auth.signup') }}" style="color:var(--accent2);font-weight:600;text-decoration:none"> Create one →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demo credentials -->
+    <div style="margin-top:20px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;font-weight:600">Demo Credentials</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.8;font-family:'JetBrains Mono',monospace">
+        Admin: admin@demo.com / Admin@123<br>
+        Manager: manager@demo.com / Manager@123<br>
+        Employee: employee@demo.com / Emp@123
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function togglePw() {
+  const f = document.getElementById('pw-field');
+  const i = document.getElementById('pw-icon');
+  if (f.type === 'password') { f.type = 'text'; i.className = 'fas fa-eye-slash'; }
+  else { f.type = 'password'; i.className = 'fas fa-eye'; }
+}
+</script>
+{% endblock %}

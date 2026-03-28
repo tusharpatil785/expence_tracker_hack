@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block title %}Approvals{% endblock %}
+{% block page_title %}Approval Queue{% endblock %}
+
+{% block content %}
+<!-- Tabs -->
+<div style="display:flex;gap:0;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;width:fit-content">
+  <a href="?status=Pending" class="btn {% if status_filter == 'Pending' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm" style="border-radius:7px">
+    <i class="fas fa-clock"></i> Pending
+    {% if pending_count > 0 %}<span class="nav-badge">{{ pending_count }}</span>{% endif %}
+  </a>
+  <a href="?status=history" class="btn {% if status_filter != 'Pending' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm" style="border-radius:7px">
+    <i class="fas fa-history"></i> History
+  </a>
+</div>
+
+{% if expenses.items %}
+  <!-- Bulk action bar -->
+  <div id="bulk-bar" style="display:none;background:var(--accent-glow);border:1px solid var(--accent);border-radius:10px;padding:12px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
+    <span id="selected-count" style="font-size:13px;font-weight:600;color:var(--accent2)">0 selected</span>
+    <form method="POST" action="{{ url_for('approvals.bulk_approve') }}" id="bulk-form" style="display:flex;gap:8px">
+      <input type="hidden" name="decision" id="bulk-decision" value="Approved"/>
+      <input type="hidden" name="comment" value="Bulk approved"/>
+      <div id="bulk-ids"></div>
+      <button type="button" onclick="submitBulk('Approved')" class="btn btn-success btn-sm">
+        <i class="fas fa-check"></i> Approve All
+      </button>
+      <button type="button" onclick="submitBulk('Rejected')" class="btn btn-danger btn-sm">
+        <i class="fas fa-xmark"></i> Reject All
+      </button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="padding-left:22px">
+              <input type="checkbox" id="select-all" style="width:14px;height:14px" onchange="toggleAll(this)"/>
+            </th>
+            <th>Expense</th>
+            <th>Submitter</th>
+            <th>Amount</th>
+            <th>Category</th>
+            <th>Step</th>
+            <th>Submitted</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for exp in expenses.items %}
+          <tr>
+            <td style="padding-left:22px">
+              <input type="checkbox" class="row-check" value="{{ exp.id }}" style="width:14px;height:14px" onchange="updateBulkBar()"/>
+            </td>
+            <td>
+              <div style="font-weight:600;color:var(--text);font-size:13px">{{ exp.title[:35] }}{% if exp.title|length > 35 %}…{% endif %}</div>
+              {% if not exp.policy_compliant %}
+                <div style="font-size:10px;color:var(--yellow)"><i class="fas fa-triangle-exclamation"></i> Policy issue</div>
+              {% endif %}
+            </td>
+            <td>
+              <div style="font-size:13px">{{ exp.submitter.name }}</div>
+              <div style="font-size:11px;color:var(--text3)">{{ exp.submitter.department or '—' }}</div>
+            </td>
+            <td class="mono">
+              <div>{{ exp.currency }} {{ "%.0f"|format(exp.amount) }}</div>
+              {% if exp.converted_amount %}
+                <div style="font-size:11px;color:var(--text3)">≈ {{ exp.company.base_currency }} {{ "%.0f"|format(exp.converted_amount) }}</div>
+              {% endif %}
+            </td>
+            <td style="font-size:12px;color:var(--text2)">{{ exp.category }}</td>
+            <td>
+              <span style="background:var(--accent-glow);color:var(--accent2);padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600">
+                Step {{ exp.current_step }}
+              </span>
+            </td>
+            <td style="font-size:12px;color:var(--text3)">{{ exp.created_at.strftime('%d %b %Y') }}</td>
+            <td>
+              <a href="{{ url_for('approvals.review_expense', expense_id=exp.id) }}" class="btn btn-primary btn-xs">
+                <i class="fas fa-gavel"></i> Review
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if expenses.pages > 1 %}
+    <div style="border-top:1px solid var(--border);padding:16px 22px">
+      <div class="pagination">
+        {% for p in expenses.iter_pages() %}
+          {% if p %}
+            <a href="?status={{ status_filter }}&page={{ p }}" class="page-btn {% if p == expenses.page %}active{% endif %}">{{ p }}</a>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="card">
+    <div class="empty-state" style="padding:80px 20px">
+      <i class="fas fa-circle-check" style="color:var(--green)"></i>
+      <p style="font-size:16px;font-weight:600;color:var(--text);margin-top:8px">All caught up!</p>
+      <p>No pending approvals at this time.</p>
+    </div>
+  </div>
+{% endif %}
+
+<script>
+function toggleAll(cb) {
+  document.querySelectorAll('.row-check').forEach(c => c.checked = cb.checked);
+  updateBulkBar();
+}
+function updateBulkBar() {
+  const checked = document.querySelectorAll('.row-check:checked');
+  const bar = document.getElementById('bulk-bar');
+  document.getElementById('selected-count').textContent = checked.length + ' selected';
+  bar.style.display = checked.length > 0 ? 'flex' : 'none';
+}
+function submitBulk(decision) {
+  const checked = document.querySelectorAll('.row-check:checked');
+  const form = document.getElementById('bulk-form');
+  document.getElementById('bulk-decision').value = decision;
+  document.getElementById('bulk-ids').innerHTML = '';
+  checked.forEach(c => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'expense_ids'; inp.value = c.value;
+    document.getElementById('bulk-ids').appendChild(inp);
+  });
+  form.submit();
+}
+</script>
+{% endblock %}
